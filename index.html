@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Übe-Tracker">
+<meta name="theme-color" content="#18211e">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.png">
+<title>Übe-Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: one phone column — timer card on top, the 11 pomodoros as a numbered run, then note and week. */
+:root{
+  --bg:#eef2f0; --surface:#ffffff; --ink:#18211e; --muted:#5d6b66; --line:#d5ddd9;
+  --brass:#a46d12; --brass-soft:#f4e6c8; --patina:#2f6f62; --patina-soft:#dcece7; --rest:#6a5aa8;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111614; --surface:#1a211e; --ink:#e8eeeb; --muted:#9aa9a3; --line:#2c3632;
+  --brass:#e0aa4a; --brass-soft:#3a2f1a; --patina:#74b8a7; --patina-soft:#1f322d; --rest:#a99be0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111614; --surface:#1a211e; --ink:#e8eeeb; --muted:#9aa9a3; --line:#2c3632;
+  --brass:#e0aa4a; --brass-soft:#3a2f1a; --patina:#74b8a7; --patina-soft:#1f322d; --rest:#a99be0; color-scheme:dark}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg)}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 40px}
+main{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
+h1,h2{font-family:var(--display);font-weight:800;letter-spacing:.01em;margin:0;text-wrap:balance}
+h1{font-size:2rem;line-height:1}
+h2{font-size:1.35rem;text-transform:uppercase;letter-spacing:.06em}
+.eyebrow{font-size:.75rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.head{display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:.8rem;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--patina-soft);color:var(--patina)}
+.chip.brass{background:var(--brass-soft);color:var(--brass)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+
+/* Timer */
+.timer{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.phase{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.phase b{font-size:.8rem;text-transform:uppercase;letter-spacing:.09em}
+.phase.focus b{color:var(--brass)} .phase.short b,.phase.long b{color:var(--rest)} .phase.idle b{color:var(--muted)}
+.clock{font-family:var(--display);font-weight:800;font-size:clamp(4.5rem,24vw,7rem);line-height:.9;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.now{font-weight:700;min-height:1.4em}
+.now small{display:block;font-weight:400;color:var(--muted);font-size:.9rem}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--brass);transition:width .4s linear}
+.phase.short~.bar i,.phase.long~.bar i{background:var(--rest)}
+.controls{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px}
+.btn{border:1px solid var(--line);background:transparent;border-radius:12px;padding:12px 10px;font-weight:700}
+.btn.primary{background:var(--brass);border-color:var(--brass);color:var(--surface)}
+.btn:disabled{opacity:.45;cursor:default}
+.ticks{display:grid;grid-template-columns:repeat(11,1fr);gap:4px}
+.ticks span{height:6px;border-radius:2px;background:var(--line)}
+.ticks span.done{background:var(--patina)} .ticks span.cur{background:var(--brass)}
+.summary{display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* Pomodoro list */
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:40px 1fr 44px;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}
+.num{font-family:var(--display);font-weight:800;font-size:1.6rem;line-height:1;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:2px}
+.row.cur .num{color:var(--brass)}
+.row.done .num{color:var(--patina)}
+.txt{min-width:0}
+.txt strong{display:block}
+.txt span{display:block;color:var(--muted);font-size:.92rem}
+.row.off .txt strong::after{content:" · ohne Instrument";font-weight:400;color:var(--rest);font-size:.85rem}
+.check{width:40px;height:40px;border-radius:50%;border:2px solid var(--line);background:transparent;display:grid;place-items:center}
+.check svg{width:20px;height:20px;opacity:0}
+.row.done .check{background:var(--patina);border-color:var(--patina)}
+.row.done .check svg{opacity:1}
+.check path{stroke:var(--surface);stroke-width:3;fill:none}
+.break{padding:8px 0;font-size:.8rem;text-transform:uppercase;letter-spacing:.09em;color:var(--rest);font-weight:700;border-bottom:1px solid var(--line)}
+
+/* Note */
+textarea{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:12px;font:inherit}
+.hint{font-size:.85rem;color:var(--muted)}
+
+/* Week */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end}
+.day{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.8rem;color:var(--muted)}
+.col{width:100%;height:86px;background:var(--line);border-radius:6px;position:relative;overflow:hidden}
+.col i{position:absolute;left:0;right:0;bottom:0;background:var(--patina);border-radius:6px 6px 0 0}
+.col.full i{background:var(--brass)}
+.day.today b{color:var(--ink)}
+.day b{font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{display:flex;flex-direction:column}
+.stat b{font-family:var(--display);font-size:1.8rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.stat span{font-size:.8rem;color:var(--muted)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:10px 0;font-weight:700;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--brass);color:var(--surface)}
+section{display:flex;flex-direction:column;gap:12px}
+.sync{font-size:.88rem;font-weight:700;padding:8px 12px;border-radius:10px;background:var(--patina-soft);color:var(--patina)}
+.sync.warn{background:var(--brass-soft);color:var(--brass)}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+</head>
+<body>
+<main>
+  <header class="head">
+    <div class="eyebrow" id="dateLine">Heute</div>
+    <h1 id="dayTitle">Übetag</h1>
+    <div class="chips" id="chips"></div>
+    <div class="sync" id="sync" role="status">Lokal auf diesem Handy gespeichert</div>
+  </header>
+
+  <div class="timer" aria-live="polite">
+    <div class="phase idle" id="phase"><b id="phaseLabel">Bereit</b><span class="hint" id="phaseHint">25 min Fokus, dann 5 min Pause</span></div>
+    <div class="clock" id="clock">25:00</div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="now" id="nowText"></div>
+    <div class="controls">
+      <button class="btn primary" id="startBtn">Start</button>
+      <button class="btn" id="skipBtn">Fertig</button>
+      <button class="btn" id="resetBtn">Zurück</button>
+    </div>
+    <div class="ticks" id="ticks" aria-hidden="true"></div>
+    <div class="summary"><span id="sumDone">0 von 11 Pomodoros</span><span id="sumMin">0 von 275 min</span></div>
+  </div>
+
+  <section>
+    <h2>Heute</h2>
+    <ol class="list" id="list"></ol>
+  </section>
+
+  <section>
+    <h2>Tagesnotiz</h2>
+    <label class="hint" for="note">Tagesziel am Morgen, Rückblick am Abend</label>
+    <textarea id="note" placeholder="Ziel: Pederson 3, Takt 1–16 bei ♩ = 80"></textarea>
+    <div class="hint" id="saveState"></div>
+  </section>
+
+  <section>
+    <h2>Diese Woche</h2>
+    <div class="week" id="week"></div>
+    <div class="stats">
+      <div class="stat"><b id="wkPomo">0</b><span>Pomodoros von 66</span></div>
+      <div class="stat"><b id="wkMin">0</b><span>Minuten von 1650</span></div>
+      <div class="stat"><b id="wkDays">0</b><span>volle Übetage</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Woche im Monat</h2>
+    <div class="seg" id="seg" role="group" aria-label="Woche im Monatsplan"></div>
+    <div class="hint">Die Woche bestimmt Etüden, Orchesterstellen und Tempi. Nach Woche 4 beginnt der Zyklus wieder bei 1.</div>
+  </section>
+  <section>
+    <h2>Backup</h2>
+    <div class="hint">Alles liegt nur auf diesem Handy. Sichere ab und zu ein Backup, zum Beispiel einmal pro Woche, und lege die Datei in „Dateien" oder auf deinen Server.</div>
+    <div class="controls" style="grid-template-columns:1fr 1fr">
+      <button class="btn primary" id="exportBtn">Backup speichern</button>
+      <button class="btn" id="importBtn">Backup laden</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <div class="hint" id="backupState"></div>
+    <div class="hint" id="offlineState">Offline-Modus wird eingerichtet …</div>
+  </section>
+</main>
+
+<script>
+(function(){
+// ---------- Plan data ----------
+const DAYS=["So","Mo","Di","Mi","Do","Fr","Sa"];
+const DAYNAMES=["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const WEEKDAY={
+ 1:{keys:"B-Dur, g-Moll",basics:"8 a, 1 a, 2 a, 7 a",etude:"pederson",blatt:"Edwards-Melodie aus einem späteren Teil",alt:false},
+ 2:{keys:"F-Dur, d-Moll",basics:"1 b, 2 b, 5 b, 9 a",etude:"rythmo",blatt:"Pederson, noch nicht geübte Etüde",alt:false},
+ 3:{keys:"Es-Dur, c-Moll",basics:"5 a, 1 a, 2 a, 7 b",etude:"sluchinA",blatt:"Bordogni-Vokalise auf Alt",alt:true},
+ 4:{keys:"C-Dur, a-Moll",basics:"8 a, 2 b, 5 c, 9 b",etude:"pederson",blatt:"Rythmo-techniques, neue Etüde",alt:false},
+ 5:{keys:"As-Dur, f-Moll",basics:"1 c, 1 a, 2 a, 7 a",etude:"rythmo",blatt:"Orchesterstelle, die noch nicht dran war",alt:false},
+ 6:{keys:"G-, D-, Des-Dur",basics:"5 a, 5 b, 5 c, 7 b, 9 c",etude:"sluchinB",blatt:"Edwards-Duett, mit Partner oder Aufnahme",alt:true}
+};
+const MONTH=[
+ {edwards:"Teil 3: Soaring Higher",ped:"1–2",ryt:"4–5",cor:"1–5",bor:"1",ble:"1",exc:"Mozart Tuba mirum, Brahms 1, Berlioz Symphonie fantastique, Rossini Gazza ladra und Tell",tempo:60,slur:"3 Töne",wide:"9 a"},
+ {edwards:"Teil 4: Plunging Lower",ped:"3–4",ryt:"6–7",cor:"6–10",bor:"2",ble:"2",exc:"Bruckner 7, Mahler 2 und 3, Saint-Saëns 3, Berlioz Damnation de Faust",tempo:80,slur:"4 Töne",wide:"9 a–b"},
+ {edwards:"Teil 5: Raising the Bar",ped:"5–6",ryt:"8–9",cor:"11–15",bor:"3",ble:"3",exc:"Ravel Boléro und L'enfant, Rimsky-Korsakov, Sibelius 7, Strawinsky Feuervogel",tempo:100,slur:"5 bis 6 Töne",wide:"9 a–c"},
+ {edwards:"Teil 6: Soaring Even Higher",ped:"7–8",ryt:"10–11",cor:"16–20",bor:"4",ble:"4",exc:"Strauss Till, Zarathustra, Heldenleben; Wagner Tannhäuser, Lohengrin, Walküre",tempo:120,slur:"7 Töne über 2 Oktaven",wide:"9 c"}
+];
+const ALT_EXC="Alt: Missa solemnis, Zauberflöte, Requiem (Kyrie), Schumann 3";
+const DUR=[25,25,25,25,25,25,25,25,25,25,25];
+const LONG_AFTER=[3,7]; // index after which a 30-min break follows
+
+function planFor(date,week){
+  const wd=date.getDay(), d=WEEKDAY[wd]||null, m=MONTH[week-1];
+  let etude="Freie Wahl";
+  if(d){
+    if(d.etude==="pederson") etude="Pederson, Advanced Etudes "+m.ped;
+    if(d.etude==="rythmo") etude="Rythmo-techniques "+m.ryt;
+    if(d.etude==="sluchinA") etude="Sluchin (Alt): Cornette-Lektionen "+m.cor+", Bordogni "+m.bor;
+    if(d.etude==="sluchinB") etude="Sluchin (Alt): Blèger "+m.ble;
+  }
+  const keys=d?d.keys:"frei", basics=d?d.basics:"frei", alt=d&&d.alt;
+  return [
+   {t:"Atmung, Buzzing, Caruso",s:"Kemner Teil 1 und 2 · ZHdK 3 a–c"},
+   {t:"Tiefe und Ton",s:"ZHdK 4 a–e oder Kemner Teil 3 · lange Töne"},
+   {t:"Ton und Legato",s:"ZHdK 6 b · Bordogni oder Kemner Teil 4"},
+   {t:"Lip Slurs",s:"Edwards "+m.edwards+" · ZHdK 8 a mit "+m.slur+", "+m.wide},
+   {t:"Artikulation",s:"Kemner Teil 6 · Basics heute: "+basics},
+   {t:"Tonleitern und Akkorde",s:keys+" · ZHdK 2 a–b bei ♩ = "+m.tempo},
+   {t:"Mentales Üben und Hören",s:"Innerlich hören, Zug trocken, Vorspiel vorstellen, Tagesziel · 10 min Aufnahmen",off:true},
+   {t:"Etüde",s:etude},
+   {t:"Orchesterstellen",s:(alt?ALT_EXC:"2 Stellen aus: "+m.exc)},
+   {t:"Solostück "+(alt?"2":"1"),s:"In Abschnitten üben, schwierige Stellen isolieren"},
+   {t:"Durchlauf, Blattspiel, Ausklang",s:"5 min Durchlauf mit Aufnahme · Blatt: "+(d?d.blatt:"frei")+" · 5 min leise Töne"}
+  ];
+}
+
+// ---------- Dates ----------
+const pad=n=>String(n).padStart(2,"0");
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parse=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+function mondayOf(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());const k=(x.getDay()+6)%7;x.setDate(x.getDate()-k);return x}
+const today=new Date(); const todayKey=ymd(today);
+function weekOfMonth(startKey){
+  const start=mondayOf(parse(startKey)), cur=mondayOf(today);
+  const w=Math.round((cur-start)/(7*864e5));
+  return ((w%4)+4)%4+1;
+}
+
+// ---------- Store (db with local fallback) ----------
+let db=null, days={}, settings={monthStart:ymd(mondayOf(today))};
+const LS="uebe-tracker-v1";
+function lsLoad(){try{const v=JSON.parse(localStorage.getItem(LS)||"{}");days=v.days||{};if(v.settings)settings=v.settings}catch(e){}}
+let storageOK=true;
+function lsSave(){try{localStorage.setItem(LS,JSON.stringify({days,settings}));storageOK=true}catch(e){storageOK=false;setSync(false)}}
+function dayRec(key){return days[key]||{date:key,done:[],note:""}}
+function saveDay(key){lsSave();setSave(storageOK?"Gespeichert":"Nicht gespeichert: Der Browser blockiert den Speicher")}
+function saveSettings(){lsSave()}
+function setSave(t){document.getElementById("saveState").textContent=t}
+function setSync(ok){const el=document.getElementById("sync");el.className="sync"+(ok?"":" warn");el.textContent=ok?"Lokal auf diesem Handy gespeichert":"Achtung: Speichern geht hier nicht. Öffne den Tracker in Safari oder Chrome, nicht in der Dateivorschau oder im privaten Modus."}
+
+// ---------- Render ----------
+const $=id=>document.getElementById(id);
+let plan=[];
+function render(){
+  const week=weekOfMonth(settings.monthStart);
+  plan=planFor(today,week);
+  const wd=today.getDay(), d=WEEKDAY[wd];
+  $("dateLine").textContent=DAYNAMES[wd]+", "+today.getDate()+". "+today.toLocaleDateString("de-DE",{month:"long"});
+  $("dayTitle").textContent=wd===0?"Ruhetag":(d.alt?"Übetag mit Altposaune":"Übetag");
+  const chips=$("chips"); chips.textContent="";
+  [["Woche "+week+" von 4","brass"],[d?d.keys:"Regeneration",""],["♩ = "+MONTH[week-1].tempo,""]].forEach(([t,c])=>{const s=document.createElement("span");s.className="chip "+c;s.textContent=t;chips.appendChild(s)});
+  const rec=dayRec(todayKey);
+  const list=$("list"); list.textContent="";
+  plan.forEach((p,i)=>{
+    const li=document.createElement("li");
+    const done=rec.done.includes(i);
+    li.className="row"+(done?" done":"")+(i===T.idx&&T.phase==="focus"?" cur":"")+(p.off?" off":"");
+    const n=document.createElement("div");n.className="num";n.textContent=i+1;
+    const tx=document.createElement("div");tx.className="txt";
+    const st=document.createElement("strong");st.textContent=p.t;const sp=document.createElement("span");sp.textContent=p.s;
+    tx.append(st,sp);
+    const b=document.createElement("button");b.className="check";b.setAttribute("aria-label","Pomodoro "+(i+1)+(done?" als offen markieren":" als erledigt markieren"));b.setAttribute("aria-pressed",done?"true":"false");
+    b.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    b.addEventListener("click",()=>toggle(i));
+    li.append(n,tx,b); list.appendChild(li);
+    if(LONG_AFTER.includes(i)){const br=document.createElement("li");br.className="break";br.textContent="Lange Pause · 30 min";list.appendChild(br)}
+  });
+  const ticks=$("ticks"); ticks.textContent="";
+  for(let i=0;i<11;i++){const s=document.createElement("span");if(rec.done.includes(i))s.className="done";else if(i===T.idx&&T.phase==="focus")s.className="cur";ticks.appendChild(s)}
+  const n=rec.done.length;
+  $("sumDone").textContent=n+" von 11 Pomodoros";
+  $("sumMin").textContent=(n*25)+" von 275 min";
+  const note=$("note"); if(document.activeElement!==note) note.value=rec.note||"";
+  renderWeek(); renderSeg(week); renderTimer();
+}
+function renderWeek(){
+  const mon=mondayOf(today), w=$("week"); w.textContent="";
+  let pom=0, full=0;
+  for(let i=0;i<7;i++){
+    const d=new Date(mon); d.setDate(mon.getDate()+i); const k=ymd(d); const c=dayRec(k).done.length; pom+=c; if(c>=11) full++;
+    const box=document.createElement("div"); box.className="day"+(k===todayKey?" today":"");
+    const b=document.createElement("b"); b.textContent=c;
+    const col=document.createElement("div"); col.className="col"+(c>=11?" full":""); const f=document.createElement("i"); f.style.height=Math.min(100,c/11*100)+"%"; col.appendChild(f);
+    const l=document.createElement("span"); l.textContent=DAYS[d.getDay()];
+    box.append(b,col,l); w.appendChild(box);
+  }
+  $("wkPomo").textContent=pom; $("wkMin").textContent=pom*25; $("wkDays").textContent=full;
+}
+function renderSeg(week){
+  const s=$("seg"); s.textContent="";
+  for(let i=1;i<=4;i++){const b=document.createElement("button");b.textContent="Woche "+i;b.setAttribute("aria-pressed",i===week?"true":"false");
+    b.addEventListener("click",()=>{const m=mondayOf(today);m.setDate(m.getDate()-(i-1)*7);settings.monthStart=ymd(m);saveSettings();render()});s.appendChild(b)}
+}
+function toggle(i){
+  const rec=dayRec(todayKey); const set=new Set(rec.done);
+  set.has(i)?set.delete(i):set.add(i);
+  rec.done=[...set].sort((a,b)=>a-b); days[todayKey]=rec; render(); saveDay(todayKey);
+}
+
+// ---------- Timer ----------
+const TS="uebe-timer-v1";
+let T={phase:"idle",idx:0,endsAt:0,remain:25*60e3,running:false,total:25*60e3};
+try{const v=JSON.parse(sessionStorage.getItem(TS)||localStorage.getItem(TS)||"null");if(v&&v.day===todayKey)T=Object.assign(T,v)}catch(e){}
+function persistT(){try{localStorage.setItem(TS,JSON.stringify(Object.assign({day:todayKey},T)))}catch(e){}}
+function nextOpen(){const done=dayRec(todayKey).done;for(let i=0;i<11;i++)if(!done.includes(i))return i;return -1}
+let audio=null, wake=null;
+function beep(times){
+  try{if(!audio)return;const t0=audio.currentTime;
+    for(let k=0;k<times;k++){const o=audio.createOscillator(),g=audio.createGain();o.type="sine";o.frequency.value=k%2?523.25:349.23;
+      g.gain.setValueAtTime(0,t0+k*.35);g.gain.linearRampToValueAtTime(.35,t0+k*.35+.02);g.gain.exponentialRampToValueAtTime(.001,t0+k*.35+.3);
+      o.connect(g).connect(audio.destination);o.start(t0+k*.35);o.stop(t0+k*.35+.32)}}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
+}
+async function lockScreen(){try{if("wakeLock" in navigator&&!wake){wake=await navigator.wakeLock.request("screen");wake.addEventListener("release",()=>wake=null)}}catch(e){}}
+function startFocus(i){T.phase="focus";T.idx=i;T.total=DUR[i]*60e3;T.endsAt=Date.now()+T.total;T.running=true}
+function startBreak(long){T.phase=long?"long":"short";T.total=(long?30:5)*60e3;T.endsAt=Date.now()+T.total;T.running=true}
+$("startBtn").addEventListener("click",()=>{
+  try{if(!audio)audio=new (window.AudioContext||window.webkitAudioContext)();audio.resume&&audio.resume()}catch(e){}
+  lockScreen();
+  if(T.running){T.remain=Math.max(0,T.endsAt-Date.now());T.running=false}
+  else if(T.phase==="idle"){const i=nextOpen();if(i<0)return;startFocus(i)}
+  else{T.endsAt=Date.now()+T.remain;T.running=true}
+  persistT();render();
+});
+$("skipBtn").addEventListener("click",()=>{finishPhase(false)});
+$("resetBtn").addEventListener("click",()=>{T={phase:"idle",idx:nextOpen()<0?0:nextOpen(),endsAt:0,remain:25*60e3,running:false,total:25*60e3};persistT();render()});
+function finishPhase(sound){
+  if(T.phase==="focus"){
+    const rec=dayRec(todayKey);if(!rec.done.includes(T.idx)){rec.done.push(T.idx);rec.done.sort((a,b)=>a-b);days[todayKey]=rec;saveDay(todayKey)}
+    if(sound)beep(3);
+    if(nextOpen()<0){T.phase="idle";T.running=false}
+    else startBreak(LONG_AFTER.includes(T.idx));
+  }else if(T.phase==="short"||T.phase==="long"){
+    if(sound)beep(2);
+    T.phase="idle";T.running=false;T.remain=25*60e3;T.total=25*60e3;T.idx=Math.max(0,nextOpen());
+  }
+  persistT();render();
+}
+const fmt=ms=>{const s=Math.ceil(ms/1000);return pad(Math.floor(s/60))+":"+pad(s%60)};
+function renderTimer(){
+  const left=T.running?Math.max(0,T.endsAt-Date.now()):(T.phase==="idle"?25*60e3:T.remain);
+  const ph=$("phase"); ph.className="phase "+T.phase;
+  const next=nextOpen();
+  const labels={focus:"Fokus · Pomodoro "+(T.idx+1),short:"Kurze Pause",long:"Lange Pause",idle:next<0?"Tag geschafft":"Bereit"};
+  $("phaseLabel").textContent=labels[T.phase];
+  $("phaseHint").textContent=T.phase==="focus"?"Instrument bereit, Handy stumm":T.phase==="idle"?(next<0?"Alle 11 Pomodoros erledigt":"Als Nächstes: Pomodoro "+(next+1)):"Instrument weg, Lippen lockern";
+  $("clock").textContent=fmt(left);
+  $("barFill").style.width=(T.phase==="idle"?0:(1-left/T.total)*100)+"%";
+  const cur=T.phase==="focus"?plan[T.idx]:(next>=0?plan[next]:null);
+  const nt=$("nowText"); nt.textContent="";
+  if(cur){nt.textContent=(T.phase==="focus"?"":"Danach: ")+cur.t;const sm=document.createElement("small");sm.textContent=cur.s;nt.appendChild(sm)}
+  else nt.textContent="Stark. Trag noch den Rückblick in die Notiz ein.";
+  $("startBtn").textContent=T.running?"Pause":(T.phase==="idle"?(next<0?"Fertig für heute":"Start"):"Weiter");
+  $("startBtn").disabled=T.phase==="idle"&&next<0;
+  $("skipBtn").textContent=T.phase==="idle"?"Fertig":(T.phase==="focus"?"Fertig":"Pause überspringen");
+  $("skipBtn").disabled=T.phase==="idle";
+  document.title=T.running?fmt(left)+" · "+labels[T.phase]:"Übe-Tracker";
+}
+setInterval(()=>{if(T.running&&Date.now()>=T.endsAt)finishPhase(true);else if(T.running)renderTimer()},500);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){if(T.running)lockScreen();renderTimer()}});
+
+// ---------- Note ----------
+let noteTimer=null;
+$("note").addEventListener("input",e=>{const rec=dayRec(todayKey);rec.note=e.target.value;days[todayKey]=rec;setSave("Wird gespeichert …");clearTimeout(noteTimer);noteTimer=setTimeout(()=>saveDay(todayKey),900)});
+
+// ---------- Backup ----------
+const bs=t=>{$("backupState").textContent=t};
+$("exportBtn").addEventListener("click",()=>{
+  const data=JSON.stringify({app:"uebe-tracker",version:1,exportedAt:new Date().toISOString(),days,settings},null,1);
+  const blob=new Blob([data],{type:"application/json"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download="uebe-tracker-backup-"+todayKey+".json"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  try{localStorage.setItem(LS+"-lastBackup",todayKey)}catch(e){}
+  bs("Backup erstellt: uebe-tracker-backup-"+todayKey+".json");
+});
+$("importBtn").addEventListener("click",()=>$("importFile").click());
+$("importFile").addEventListener("change",e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const v=JSON.parse(r.result);
+      if(!v||v.app!=="uebe-tracker"||typeof v.days!=="object")throw new Error("format");
+      let n=0;Object.keys(v.days).forEach(k=>{const inc=v.days[k];if(!inc||!Array.isArray(inc.done))return;const cur=dayRec(k);
+        const done=[...new Set([...cur.done,...inc.done])].filter(x=>Number.isInteger(x)&&x>=0&&x<11).sort((a,b)=>a-b);
+        const note=cur.note&&inc.note&&cur.note!==inc.note?cur.note+"\n"+inc.note:(cur.note||inc.note||"");
+        days[k]={date:k,done,note};n++});
+      if(v.settings&&v.settings.monthStart)settings={monthStart:v.settings.monthStart};
+      lsSave();render();bs(n+" Tage aus dem Backup übernommen. Vorhandene Einträge bleiben erhalten.");
+    }catch(err){bs("Diese Datei ist kein Backup des Übe-Trackers. Wähle eine Datei, die mit „uebe-tracker-backup“ beginnt.")}
+    e.target.value=""};
+  r.readAsText(f);
+});
+
+
+// ---------- Offline ----------
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js",{scope:"./"}).then(()=>{
+    navigator.serviceWorker.ready.then(()=>{const el=$("offlineState");if(el)el.textContent="Offline bereit: Der Tracker läuft auch ohne Internet."});
+  }).catch(()=>{const el=$("offlineState");if(el)el.textContent="Offline-Modus nicht verfügbar. Öffne den Tracker über die https-Adresse."});
+}else{const el=$("offlineState");if(el)el.textContent="Dieser Browser kann den Tracker nicht offline speichern."}
+
+// ---------- Boot ----------
+lsLoad();
+try{localStorage.setItem(LS+"-test","1");localStorage.removeItem(LS+"-test")}catch(e){storageOK=false}
+setSync(storageOK); render();
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+(function(){let last=null;try{last=localStorage.getItem(LS+"-lastBackup")}catch(e){}
+  if(!last)bs("Noch kein Backup erstellt.");
+  else{const ago=Math.round((parse(todayKey)-parse(last))/864e5);bs(ago>=7?"Letztes Backup vor "+ago+" Tagen. Zeit für ein neues.":"Letztes Backup: "+(ago===0?"heute":"vor "+ago+(ago===1?" Tag":" Tagen")))}})();
+})();
+</script>
+</body>
+</html>
